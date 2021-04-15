@@ -114,8 +114,12 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
         if (ArrCIDE.length != 0) {
           ArrReturn = ArrReturn.concat(ArrCIDE); //se agregan lineas CIDE
         }
-        log.debug('Resultado con Taxresult actualizados', ArrReturn);
-
+        /******* E-PAYMENT (R11) *******/
+        var ePayments = obtenerLineasEPayment();
+        if (ePayments.length != 0) {
+          ArrReturn = ArrReturn.concat(ePayments); //se agregan lineas e-payment
+        }
+        log.debug('Resultado en getInputData', ArrReturn);
         return ArrReturn;
 
       } catch (error) {
@@ -140,14 +144,18 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             value: arrTemp
           });
         } else {
-
+          /* PARA IMPORTACIONES */
           if (arrTemp[0] == 'Journal') { //journals IOF CIDE Proceso Manual - Automatico
             if (verificarPagoImportacion(arrTemp[10])) {
               procesoImportacion = 'a';
               log.debug('arrTemp journal', 'El bill payment asociado tiene tax result de importacion.');
             }
           }
+          /* PARA E-PAYMENT */
+          if (arrTemp[9] == 'DF') {
 
+          }
+          
           if (param_Excel == 'T') {
             if (arrTemp[5] != 0) { //los que tienen monto 0 no se mandan
               key = context.key;
@@ -397,6 +405,104 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
         libreria.sendemailTranslate(error, LMRY_script, language);
         NoData(true);
       }
+    }
+
+    function obtenerLineasEPayment(){
+      var intDMinReg = 0;
+      var intDMaxReg = 1000;
+      var DbolStop = false;
+      var arrReturn = new Array();
+
+      var savedsearch = search.load({
+        /* LatamReady - BR DCTF E-Payment */
+        id: 'customsearch_lmry_br_dctf_epay'
+      });
+
+      if (feature_Subsi) {
+        var subsidiaryFilter = search.createFilter({
+          name: 'subsidiary',
+          operator: search.Operator.IS,
+          values: SubsidiariasContempladas
+        });
+        savedsearch.filters.push(subsidiaryFilter);
+      }
+
+      var formulaPeriod = "CASE WHEN {custbody_lmry_cl_period.custrecord_lmry_cl_period_fact_actual.id}='" + param_Periodo + "' THEN 1 ELSE 0 END";
+      log.debug('formulaPeriod', formulaPeriod);
+      var periodFilter = search.createFilter({
+        name: 'formulanumeric',
+        formula: formulaPeriod,
+        operator: search.Operator.EQUALTO,
+        values: 1
+      });
+      savedsearch.filters.push(periodFilter);
+
+      if (feature_Multi) {
+        var multibookFilter = search.createFilter({
+          name: 'accountingbook',
+          join: 'accountingtransaction',
+          operator: search.Operator.IS,
+          values: [param_Multi]
+        });
+        savedsearch.filters.push(multibookFilter);
+      }
+
+      var searchResult = savedsearch.run();
+      while (!DbolStop) {
+        var objResult = searchResult.getRange(intDMinReg, intDMaxReg);
+        log.debug('objResult epay',objResult);
+        if (objResult != null) {
+          if (objResult.length != 1000) {
+            DbolStop = true;
+          }
+          for (var i = 0; i < objResult.length; i++) {
+            var columns = objResult[i].columns;
+            var arrAuxiliar = new Array();
+            // 0. ID Bill
+            arrAuxiliar[0] = objResult[i].getValue(columns[0]);
+            // 1. Concepto
+            arrAuxiliar[1] = objResult[i].getValue(columns[1]);
+            // 2. Tributo
+            if (objResult[i].getValue(columns[2]) != '- None -' && objResult[i].getValue(columns[2]) != null) {
+              arrAuxiliar[2] = objResult[i].getValue(columns[2]);
+            } else {
+              arrAuxiliar[2] = '';
+            }
+            // 3. Receita DARF
+            if (objResult[i].getValue(columns[3]) != '- None -' && objResult[i].getValue(columns[3]) != null) {
+              arrAuxiliar[3] = objResult[i].getValue(columns[3]);
+            } else {
+              arrAuxiliar[3] = '';
+            }
+            // 4. ID Receita DCTF
+            if (objResult[i].getValue(columns[4]) != '- None -' && objResult[i].getValue(columns[4]) != null) {
+              arrAuxiliar[4] = objResult[i].getValue(columns[4]);
+            } else {
+              arrAuxiliar[4] = '';
+            }
+            // 5. Interes/Juros
+            arrAuxiliar[5] = objResult[i].getValue(columns[5]);
+            // 6. Multa
+            arrAuxiliar[6] = objResult[i].getValue(columns[6]);
+            //7. Subsidiaria
+            arrAuxiliar[7] = objResult[i].getValue(columns[7]);
+            //8. ID Bill Payment
+            arrAuxiliar[8] = objResult[i].getValue(columns[8]);
+            //9. Legal Document Type
+            arrAuxiliar[9] = objResult[i].getValue(columns[9]);
+
+            arrReturn.push(arrAuxiliar);
+          }
+          if (!DbolStop) {
+            intDMinReg = intDMaxReg;
+            intDMaxReg += 1000;
+          }
+        } else {
+          DbolStop = true;
+        }
+      }
+      log.debug('Resultado de busqueda e-payment', arrReturn);
+      return arrReturn;
     }
 
     function verificarPagoImportacion(idBillPayment) {

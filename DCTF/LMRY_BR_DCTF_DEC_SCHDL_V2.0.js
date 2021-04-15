@@ -2377,7 +2377,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       var id_employee_representante = search.lookupFields({
         type: search.Type.EMPLOYEE,
         id: legal_representante,
-        columns: ['firstname', 'lastname', 'custentity_taxpayer_number_sv', 'phone', 'fax', 'email']
+        columns: ['firstname', 'lastname', 'custentity_lmry_sv_taxpayer_number', 'phone', 'fax', 'email']
       });
       //para los campos del address del Representante Legal
       var id_employee_representante_add = search.lookupFields({
@@ -2390,7 +2390,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       var columna6 = validarCaracteres_Especiales(id_employee_representante.firstname + ' ' + id_employee_representante.lastname);
       columna6 = completar(60, columna6, ' ', false);
       //CPF - Representante
-      var columna7 = id_employee_representante.custentity_taxpayer_number_sv;
+      var columna7 = id_employee_representante.custentity_lmry_sv_taxpayer_number;
       //log.error('columna7', columna7);
       columna7 = ValidaGuion(columna7);
       columna7 = completar(11, columna7, ' ', false);
@@ -2435,7 +2435,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       var id_employee_responsable = search.lookupFields({
         type: search.Type.EMPLOYEE,
         id: name_responsable,
-        columns: ['firstname', 'lastname', 'custentity_taxpayer_number_sv', 'custentity_lmry_br_crc', 'phone', 'fax', 'email']
+        columns: ['firstname', 'lastname', 'custentity_lmry_sv_taxpayer_number', 'custentity_lmry_br_crc', 'phone', 'fax', 'email']
       });
       //para los campos del address
       var id_employee_responsable_add = search.lookupFields({
@@ -2451,7 +2451,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       columna14 = completar(60, columna14, ' ', false);
 
       //CPF - Responsável
-      var columna15 = id_employee_responsable.custentity_taxpayer_number_sv;
+      var columna15 = id_employee_responsable.custentity_lmry_sv_taxpayer_number;
       log.error('columna15', columna15);
       columna15 = ValidaGuion(columna15);
       log.error('new columna15', columna15);
