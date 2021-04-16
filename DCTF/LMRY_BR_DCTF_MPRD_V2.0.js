@@ -153,9 +153,10 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           }
           /* PARA E-PAYMENT */
           if (arrTemp[9] == 'DF') {
-
+            var dataPago = obtenerDetallePago(arrTemp[1], arrTemp[10]);
+            var dataReceita = obtenerReceita();
           }
-          
+
           if (param_Excel == 'T') {
             if (arrTemp[5] != 0) { //los que tienen monto 0 no se mandan
               key = context.key;
@@ -163,16 +164,16 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
               return false;
             }
           } else {
-            if (arrTemp[7] == '99') { //items de servicio
+            if (arrTemp[7] == '99') { //factura de servicio
               key = arrTemp[0] + '|' + arrTemp[1] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|cod. tributo|receita|id subsi
             }
-            if (arrTemp[7] == '55') { //items de inventario
+            if (arrTemp[7] == '55') { //factura de inventario
               key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
-            if (arrTemp[0] == 'Journal') { //journals IOF CIDE Proceso Manual - Automatico
+            if (arrTemp[0] == 'Journal') { //Journals IOF CIDE Proceso Manual (R10 R11)/Automatico(R11)
               key = arrTemp[9] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8] + '|' + procesoImportacion; // idJournal|tributo|receita|id subsi
             }
-            if (arrTemp[0] == 'VendPymt') { // Importaciones Proceso Automatico
+            if (arrTemp[0] == 'VendPymt') { //Importaciones Proceso Automatico (R10)
               key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
           }
@@ -250,7 +251,8 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
 
           arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
 
-          if (arrTransaction[0][0] == 'Journal') { /* esto para validar en el schedule dec los pagos */
+          if (arrTransaction[0][0] == 'Journal') {
+            /* esto para validar en el schedule dec los pagos */
             arrAuxiliar.push(arrTransaction[0][11]); //se agrega el proceso de importacion
           }
 
@@ -407,7 +409,48 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
       }
     }
 
-    function obtenerLineasEPayment(){
+    function obtenerDetallePago(idBill, idBillPayment) {
+      var montoPago = 0;
+
+      var transactionSearchObj = search.create({
+        type: "transaction",
+        filters: [
+          ["mainline", "is", "F"],
+          "AND",
+          ["posting", "is", "T"],
+          "AND",
+          ["memorized", "is", "F"],
+          "AND",
+          ["voided", "is", "F"],
+          "AND",
+          ["internalid", "anyof", idBillPayment],
+          "AND",
+          ["formulatext: {appliedtotransaction.internalid}", "is", idBill]
+        ],
+        columns: [
+          search.createColumn({
+            name: "formulanumeric",
+            formula: "{appliedtolinkamount}",
+            sort: search.Sort.ASC,
+            label: "Monto Pagado"
+          })
+        ]
+      });
+      var searchResultCount = transactionSearchObj.runPaged().count;
+      log.debug("transactionSearchObj result count", searchResultCount);
+      transactionSearchObj.run().each(function(result) {
+        log.debug('result', result);
+        return true;
+      });
+
+      return montoPago;
+    }
+
+    function obtenerReceita(idReceita) {
+
+    }
+
+    function obtenerLineasEPayment() {
       var intDMinReg = 0;
       var intDMaxReg = 1000;
       var DbolStop = false;
@@ -450,7 +493,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
       var searchResult = savedsearch.run();
       while (!DbolStop) {
         var objResult = searchResult.getRange(intDMinReg, intDMaxReg);
-        log.debug('objResult epay',objResult);
+        log.debug('objResult epay', objResult);
         if (objResult != null) {
           if (objResult.length != 1000) {
             DbolStop = true;
@@ -458,25 +501,25 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           for (var i = 0; i < objResult.length; i++) {
             var columns = objResult[i].columns;
             var arrAuxiliar = new Array();
-            // 0. ID Bill
-            arrAuxiliar[0] = objResult[i].getValue(columns[0]);
-            // 1. Concepto
-            arrAuxiliar[1] = objResult[i].getValue(columns[1]);
+            // 0. Type
+            arrAuxiliar[0] = objResult[i].getValue(columns[10]);
+            // 1. ID BILL
+            arrAuxiliar[1] = objResult[i].getValue(columns[0]);
             // 2. Tributo
             if (objResult[i].getValue(columns[2]) != '- None -' && objResult[i].getValue(columns[2]) != null) {
               arrAuxiliar[2] = objResult[i].getValue(columns[2]);
             } else {
               arrAuxiliar[2] = '';
             }
-            // 3. Receita DARF
-            if (objResult[i].getValue(columns[3]) != '- None -' && objResult[i].getValue(columns[3]) != null) {
-              arrAuxiliar[3] = objResult[i].getValue(columns[3]);
+            // 3. ID Receita DCTF
+            if (objResult[i].getValue(columns[4]) != '- None -' && objResult[i].getValue(columns[4]) != null) {
+              arrAuxiliar[3] = objResult[i].getValue(columns[4]);
             } else {
               arrAuxiliar[3] = '';
             }
-            // 4. ID Receita DCTF
-            if (objResult[i].getValue(columns[4]) != '- None -' && objResult[i].getValue(columns[4]) != null) {
-              arrAuxiliar[4] = objResult[i].getValue(columns[4]);
+            //4. Receita DARF
+            if (objResult[i].getValue(columns[3]) != '- None -' && objResult[i].getValue(columns[3]) != null) {
+              arrAuxiliar[4] = objResult[i].getValue(columns[3]);
             } else {
               arrAuxiliar[4] = '';
             }
@@ -484,12 +527,14 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             arrAuxiliar[5] = objResult[i].getValue(columns[5]);
             // 6. Multa
             arrAuxiliar[6] = objResult[i].getValue(columns[6]);
-            //7. Subsidiaria
-            arrAuxiliar[7] = objResult[i].getValue(columns[7]);
-            //8. ID Bill Payment
-            arrAuxiliar[8] = objResult[i].getValue(columns[8]);
-            //9. Legal Document Type
-            arrAuxiliar[9] = objResult[i].getValue(columns[9]);
+            //7. Cod. Document Type
+            arrAuxiliar[7] = objResult[i].getValue(columns[9]);
+            //8. Subisidaria ID
+            arrAuxiliar[8] = objResult[i].getValue(columns[7]);
+            //9.Concepto
+            arrAuxiliar[9] = objResult[i].getValue(columns[1]);
+            //10. ID Bill Payment
+            arrAuxiliar[10] = objResult[i].getValue(columns[8]);
 
             arrReturn.push(arrAuxiliar);
           }
