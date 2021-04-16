@@ -3420,7 +3420,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         anio_ini = parsedDateStringAsRawDateObject.getFullYear() + '';
         dia_ini = parsedDateStringAsRawDateObject.getDate() + '';
 
-        if (dia_date.length == 1) {
+        if (dia_ini.length == 1) {
           dia_ini = '0' + dia_ini;
         }
         if ((mes_ini + '').length == 1) {
