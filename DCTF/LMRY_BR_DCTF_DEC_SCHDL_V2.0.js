@@ -328,8 +328,10 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         var columna15 = completar(14, ValidaGuion(montoDebito), '0', true);
         var columna16 = '0';
         if (arrayData[i][5] == '01' || arrayData[i][5] == '05') { //IRPJ O CSLL
-          if (balance_suspensao == 'F' || balance_suspensao == false) {
-            columna16 = '1'; ////*****Setup
+          if (arrayData[i][7] == 'M') {//hay algunas receitas a exceptuar
+            if (balance_suspensao == 'F' || balance_suspensao == false) {////*****Setup
+              columna16 = '1';
+            }
           }
         }
         var columna17 = '0';
