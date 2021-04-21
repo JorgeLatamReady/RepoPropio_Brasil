@@ -182,7 +182,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             if (arrTemp[7] == '55') {//factura de inventario
               key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
-            if (arrTemp[7] == 'DF') {//E-pay DARF
+            if (arrTemp[7] == 'DF') {//E-pay DARF(R11)
               key = arrTemp[10];
             }
             if (arrTemp[0] == 'Journal') { //Journals IOF CIDE Proceso Manual (R10 R11)/Automatico(R11)
@@ -319,7 +319,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             arrAuxiliar.push(arrTransaction[0][9]); //se agrega el id bill importacion
             arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
             /* esto para validar en el schedule dec los pagos */
-            arrAuxiliar.push(arrTransaction[0][11]); //se agrega el proceso de importacion
+            arrAuxiliar.push(arrTransaction[0][11]); //se agrega el tipo  de proceso de importacion
 
           } else if (arrTransaction[0][0] == 'VendPymt') {
             arrAuxiliar[0] = arrTransaction[0][1];
