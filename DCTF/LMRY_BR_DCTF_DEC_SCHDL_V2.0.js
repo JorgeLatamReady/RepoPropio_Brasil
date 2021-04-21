@@ -98,7 +98,6 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var id_periodicidad_csll = null;
     //cambios de  27/03/2019
     var id_tribute_wht_irrf_repres = null;
-    var receita_wht_irrf_repres = null;
     var id_receita_wht_irrf_repres = null;
     var periodicidad_irrf_repres = null;
     var id_item_repres_legal = null;
@@ -127,19 +126,16 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var ArrSetupDCTF_Purchases_Inv = new Array();
     var Arr_WHT_Item = new Array();
     var Arr_WHT_No_Item = new Array();
-    var ArrJournalImportacion = new Array(); //Impuestos CIDE o IOF
     var ArrIOFJournal = new Array();
     var ArrCIDEJournal = new Array();
+    var ArrIOFBillPay = new Array();
+    var ArrCIDEBillPay = new Array();
     var ArrTempJournalImportacion = new Array();
-    var ArrSetupDCTF_JOURNAL = [];
     var ArrJournalR11 = new Array();
-    var ArrJournalR12 = [];
     var LineasR12 = [];
-    var ArrJournalR14 = [];
     var LineasR14 = [];
     var ArrImpMinimos = new Array();
     var PeriodAnt = '';
-    var ArrLineasNomina = new Array();
     var ArrR11Nomina = new Array();
 
     var Filiales;
@@ -167,21 +163,21 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         GenerarArreglos(); //obtiene data del archivo temporal
         obtenerDatosCreditFile(); //obtiene creditos anteriores
         /********************* CARGADO DE JOURNALS R11 ****************************/
-        ArrSetupDCTF_JOURNAL = CargarJournalR11(5); //ID Concepto: Pagos de Impuesto
-        ArrLineasNomina = CargarJournalR11(25); //ID Concepto: Impostos de Nomina
-        CargarR11();
+        var lineasPagoImpuestos = CargarJournalR11(5); //ID Concepto: Pagos de Impuesto
+        var lineasNomina = CargarJournalR11(25); //ID Concepto: Impostos de Nomina
+        var pagosTotales = lineasPagoImpuestos.concat(lineasNomina);
+        CargarR11(pagosTotales); //formatea la data de pagos a la estructura R11
         ArrJournalR11 = agruparPagos(ArrJournalR11);
         ArrR11Nomina = agruparPagos(ArrR11Nomina);
-        var strNomina = armarLineasNomina(ArrR11Nomina); //arma lineas r11 y r10
-        /********************* CARGADO DE COMPENSACIONES Y SUSPENSIONES (R12/¡R14) *******************/
-        ArrJournalR12 = CargarJournals('R12');
+        var strNomina = armarLineasNomina(ArrR11Nomina); //arma lineas r11 y r10 para el reporte
+        /********************* CARGADO DE COMPENSACIONES Y SUSPENSIONES (R12/R14) *******************/
+        var ArrJournalR12 = CargarJournals('R12');
         LineasR12 = CargarLineasR12_R14(ArrJournalR12, 'R12');
-        ArrJournalR14 = CargarJournals('R14');
+        var ArrJournalR14 = CargarJournals('R14');
         LineasR14 = CargarLineasR12_R14(ArrJournalR14, 'R14');
         LineasR14 = agruparR14(LineasR14);
         /*******************************  IMPUESTOS ************************************************/
         var strR10IPIFiliales = separarIPI_filiales(); //arma r10 IPI(filiales y matriz) y retira dichas lineas de los arreglos
-
         //Se agrupan los arreglos y acumulan montos
         ArrSetupDCTF_Sales_Inv = acumularMontosMatriz(ArrSetupDCTF_Sales_Inv);
         ArrSetupDCTF_Purchases_Inv = acumularMontosMatriz(ArrSetupDCTF_Purchases_Inv);
@@ -205,12 +201,14 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         strR10Impuestos = armarR10(impuestos, CNPJ);
 
-        /* IMPUESTOS DE IMPORTACION */
-        var strR10Importacion = '';
-        if (ArrCIDEJournal.length != 0 || ArrIOFJournal.length != 0) {
-          ArrIOFJournal = acumularMontosMatriz(ArrIOFJournal);
-          strR10Importacion += armarLineasPorFilial(ArrCIDEJournal);
-          strR10Importacion += armarR10(prepararMatriz(ArrIOFJournal), '');
+        /********* IMPUESTOS DE IMPORTACION **************/
+        var strR10Importacion = ''; //se fusionan lineas de proceso automatico y manual para agrupar
+        var iofTotal = ArrIOFBillPay.concat(ArrIOFJournal);
+        var cideTotal = ArrCIDEBillPay.concat(ArrCIDEJournal);
+        if (cideTotal.length != 0 || iofTotal.length != 0) {
+          iofTotal = acumularMontosMatriz(iofTotal);
+          strR10Importacion += armarLineasPorFilial(cideTotal);
+          strR10Importacion += armarR10(prepararMatriz(iofTotal), '');
         }
         log.debug('cadenas r10 importacion', strR10Importacion);
         /****************************** RETENCIONES (de BIlls) ************************************/
@@ -328,8 +326,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         var columna15 = completar(14, ValidaGuion(montoDebito), '0', true);
         var columna16 = '0';
         if (arrayData[i][5] == '01' || arrayData[i][5] == '05') { //IRPJ O CSLL
-          if (arrayData[i][7] == 'M') {//hay algunas receitas a exceptuar
-            if (balance_suspensao == 'F' || balance_suspensao == false) {////*****Setup
+          if (arrayData[i][7] == 'M') { //hay algunas receitas a exceptuar
+            if (balance_suspensao == 'F' || balance_suspensao == false) { ////*****Setup
               columna16 = '1';
             }
           }
@@ -697,7 +695,16 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         values: 1
       });
       savedsearch.filters.push(periodFilter);
-
+      //Concepto
+      var formula = "CASE WHEN {custbody_lmry_type_concept.id}='" + concepto + "' THEN 1 ELSE 0 END";
+      var conceptFilter = search.createFilter({
+        name: 'formulatext',
+        operator: search.Operator.IS,
+        formula: formula,
+        values: 1
+      });
+      savedsearch.filters.push(conceptFilter);
+      //Subsi
       if (feature_Subsi) {
         var subsidiaryFilter = search.createFilter({
           name: 'subsidiary',
@@ -1130,10 +1137,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       return filasSubregistro;
     }
 
-    function CargarR11() {
-      var r11Columna = new Array();
-      var arrTotal = ArrSetupDCTF_JOURNAL.concat(ArrLineasNomina)
-      ///CARGAR BUSQUEDA JOURNAL
+    function CargarR11(arrTotal) {
       for (var i = 0; i < arrTotal.length; i++) {
         r11Columna = [];
         //0. Tipo
@@ -1215,7 +1219,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         //17. Data de Vencimento
         r11Columna[17] = '        ';
-        log.debug('vencimiento', arrTotal[i][1]);
+        //log.debug('vencimiento', arrTotal[i][1]);
         if (arrTotal[i][1] != null && arrTotal[i][1] != '' && arrTotal[i][1] != '- None -') {
           r11Columna[17] = ValidaGuion(arrTotal[i][1]);
         }
@@ -1304,6 +1308,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       arrAuxiliarVentas = ArreglodeTodo[0].split('|');
       arrAuxiliarCompra = ArreglodeTodo[1].split('|');
       arrAuxiliarJournal = ArreglodeTodo[2].split('|');
+      var arrAuxiliarBillPayment = ArreglodeTodo[3].split('|');
 
       for (var i = 0; i < arrAuxiliarVentas.length; i++) {
         if (arrAuxiliarVentas[i] == '') {
@@ -1339,14 +1344,32 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         arrAuxiliar = arrAuxiliarJournal[j].split(';');
         if (arrAuxiliar[5] == 'Journal') {
+          if (arrAuxiliar[9] == 'm') { //solo journals asociados a proceso de importacion manual se tomaran como r10 y r11.
+            if (arrAuxiliar[0] == '09') { //CIDE
+              ArrCIDEJournal.push(arrAuxiliar);
+            } else if (arrAuxiliar[0] == '04') {
+              ArrIOFJournal.push(arrAuxiliar);
+            }
+          }
+          //para validar pagos en el registro r11 en verificarImportacion(idjournal), tanto de lineas asociadas
+          //a proceso manual como automatico.
+          ArrTempJournalImportacion.push(arrAuxiliar);
+        }
+      }
+
+      for (var j = 0; j < arrAuxiliarBillPayment.length; j++) {
+        if (arrAuxiliarBillPayment[j] == '') {
+          break;
+        }
+        arrAuxiliar = arrAuxiliarBillPayment[j].split(';');
+        if (arrAuxiliar[5] == 'VendPymt') {
           if (arrAuxiliar[0] == '09') { //CIDE
-            ArrCIDEJournal.push(arrAuxiliar);
+            ArrCIDEBillPay.push(arrAuxiliar);
           } else if (arrAuxiliar[0] == '04') {
-            ArrIOFJournal.push(arrAuxiliar);
+            ArrIOFBillPay.push(arrAuxiliar);
           }
         }
       }
-      ArrTempJournalImportacion = ArrCIDEJournal.concat(ArrIOFJournal); //se guarda todo para validar con R11
 
       log.error('valor de arreglo de Ventas- Servicios', ArrSetupDCTF_Sales);
       log.error('valor d arrreglo de Ventas - INventario', ArrSetupDCTF_Sales_Inv);
@@ -1354,6 +1377,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       log.error('vaor de arreglo de comrpas - Inventario', ArrSetupDCTF_Purchases_Inv);
       log.error('vaor de arreglo de Journal IOF', ArrIOFJournal);
       log.error('vaor de arreglo de Journal CIDE', ArrCIDEJournal);
+      log.error('vaor de arreglo de Bill Pay IOF', ArrIOFBillPay);
+      log.error('vaor de arreglo de Bill Pay CIDE', ArrCIDEBillPay);
     }
 
     function separarIPI_filiales() {
@@ -3359,7 +3384,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         });
 
         var result = specialAccountingSearch.run().getRange(0, 1);
-        log.debug('result special accounting',result);
+        log.debug('result special accounting', result);
         if (result.length != 0) {
           for (var i = 0; i < result.length; i++) {
             periodenddate_temp = {
@@ -3368,12 +3393,12 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
               startdate: result[i].getValue('custrecord_lmry_date_ini')
             };
           }
-        }else{
-          log.debug('Alerta','No se configuró periodo en Special Accounting Period');
+        } else {
+          log.debug('Alerta', 'No se configuró periodo en Special Accounting Period');
           periodenddate_temp = search.lookupFields({
             type: search.Type.ACCOUNTING_PERIOD,
             id: param_Periodo,
-            columns: ['enddate', 'periodname','startdate']
+            columns: ['enddate', 'periodname', 'startdate']
           });
         }
 
@@ -3381,10 +3406,10 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         periodenddate_temp = search.lookupFields({
           type: search.Type.ACCOUNTING_PERIOD,
           id: param_Periodo,
-          columns: ['enddate', 'periodname','startdate']
+          columns: ['enddate', 'periodname', 'startdate']
         });
       }
-      log.debug('periodenddate_temp',periodenddate_temp);
+      log.debug('periodenddate_temp', periodenddate_temp);
       if (periodenddate_temp != null) {
         //Period EndDate
         periodenddate = periodenddate_temp.enddate;
@@ -3430,7 +3455,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         //Period Name
         periodname = periodenddate_temp.periodname;
-      }else{
+      } else {
         log.debug('Alerta Periodo', 'No se tiene configurado el periodo contable');
       }
 

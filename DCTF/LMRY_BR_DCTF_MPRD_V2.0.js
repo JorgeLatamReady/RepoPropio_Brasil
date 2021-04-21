@@ -11,9 +11,9 @@
  * @NScriptType MapReduceScript
  * @NModuleScope Public
  */
-define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/query', "N/format", "N/record", "N/task", "N/url", "./BR_LIBRERIA_MENSUAL/LMRY_BR_Reportes_LBRY_V2.0"],
+define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_LIBRERIA_MENSUAL/LMRY_BR_Reportes_LBRY_V2.0"],
 
-  function(search, config, log, require, fileModulo, runtime, query, format, recordModulo, task, url, libreria) {
+  function(search, log, fileModulo, runtime, recordModulo, task, libreria) {
     /**
      * Input Data for processing
      * @return Array,Object,Search,File
@@ -78,34 +78,19 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
     }).substring(0, 2);
 
     /* Variables de Tributos para Inventario (Setup) */
-    var Receita_pis_inv;
     var Code_receita_pis_inv;
     var Periodicidad_pis_inv;
-
-    var Receita_cofins_inv;
     var Code_receita_cofins_inv;
     var Periodicidad_cofins_inv;
-
-    var Receita_ipi_inv;
     var Periodicidad_ipi_inv;
     var Code_receita_ipi_inv;
-
     var Filiales;
     var SubsidiariasContempladas;
-
     var ArrIOF = [];
     var ArrCIDE = [];
 
     function getInputData() {
       try {
-        var intDMinReg = 0;
-        var intDMaxReg = 1000;
-        var DbolStop = false;
-        //para la busqueda de transacciones
-        var ArrReturn = new Array();
-        var cont = 0;
-        var filtro = '';
-        var arrAuxiliar = new Array();
         obtenerSetupRptDCTF();
 
         log.debug('Filiales de la subsidiaria: ' + param_Subsi, Filiales);
@@ -120,143 +105,8 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
 
         obtenerJournalImportacion();
 
-        var savedsearch = search.load({
-          /* LatamReady - BR DCTF Taxes MPRD */
-          id: 'customsearch_lmry_br_dctf_imp_mprd'
-        });
-        if (feature_Subsi) {
-          var subsidiaryFilter = search.createFilter({
-            name: 'subsidiary',
-            operator: search.Operator.IS,
-            values: SubsidiariasContempladas
-          });
-          savedsearch.filters.push(subsidiaryFilter);
-        }
-
-        var periodFilter = search.createFilter({
-          name: 'postingperiod',
-          operator: search.Operator.IS,
-          values: [param_Periodo]
-        });
-        savedsearch.filters.push(periodFilter);
-
-        //formula mamadisima
-        //(OjO) si aumenta mas tributos solo tendras que modificar aqui
-        var formula = "CASE WHEN({custrecord_lmry_br_transaction.custrecord_lmry_br_id_tribute}= '01' OR {custrecord_lmry_br_transaction.custrecord_lmry_br_id_tribute} = '05' OR {custrecord_lmry_br_transaction.custrecord_lmry_br_type}= 'PIS' OR {custrecord_lmry_br_transaction.custrecord_lmry_br_type}='COFINS' OR {custrecord_lmry_br_transaction.custrecord_lmry_br_type}= 'IPI') THEN 1 ELSE 0 END";
-        log.debug('formula para impuestos:', formula);
-        var featureFilter = search.createFilter({
-          name: 'formulatext',
-          operator: search.Operator.IS,
-          values: 1,
-          formula: formula
-        });
-        savedsearch.filters.push(featureFilter);
-
-        if (feature_Multi) {
-          var multibookFilter = search.createFilter({
-            name: 'accountingbook',
-            join: 'accountingtransaction',
-            operator: search.Operator.IS,
-            values: [param_Multi]
-          });
-          savedsearch.filters.push(multibookFilter);
-          //columna 15 Exchange MULTIBOOK
-          var exchangerate_Column = search.createColumn({
-            name: "exchangerate",
-            join: "accountingTransaction",
-            summary: "GROUP"
-          });
-          savedsearch.columns.push(exchangerate_Column);
-        }
-
-        var searchResult = savedsearch.run();
-        while (!DbolStop) {
-          var objResult = searchResult.getRange(intDMinReg, intDMaxReg);
-          if (objResult != null) {
-            if (objResult.length != 1000) {
-              DbolStop = true;
-            }
-            for (var i = 0; i < objResult.length; i++) {
-              var columns = objResult[i].columns;
-              var arrAuxiliar = new Array();
-
-              // 0. Tipo
-              arrAuxiliar[0] = objResult[i].getValue(columns[7]);
-              // 1. Codigo Tributo
-              if (objResult[i].getValue(columns[0]) != '- None -' && objResult[i].getValue(columns[0]) != null) {
-                arrAuxiliar[1] = objResult[i].getValue(columns[0]);
-              } else {
-                arrAuxiliar[1] = '';
-              }
-              // 2. Tributo
-              if (objResult[i].getValue(columns[1]) != '- None -' && objResult[i].getValue(columns[1]) != null) {
-                arrAuxiliar[2] = objResult[i].getValue(columns[1]);
-              } else {
-                arrAuxiliar[2] = '';
-              }
-              // 3. ID Receita
-              if (objResult[i].getValue(columns[3]) != '- None -' && objResult[i].getValue(columns[3]) != null) {
-                arrAuxiliar[3] = objResult[i].getValue(columns[3]);
-              } else {
-                arrAuxiliar[3] = '';
-              }
-              // 4.Periodicidad
-              if (objResult[i].getValue(columns[4]) != '- None -' && objResult[i].getValue(columns[4]) != null) {
-                arrAuxiliar[4] = objResult[i].getValue(columns[4]);
-              } else {
-                arrAuxiliar[4] = '';
-              }
-              // 5. Monto
-              var impLocalCurrency = objResult[i].getValue(columns[14]);
-              //log.debug('impLocalCurrency',impLocalCurrency);
-              if (impLocalCurrency != null && impLocalCurrency != 0 && impLocalCurrency != '- None -') {
-                arrAuxiliar[5] = redondear(impLocalCurrency);
-              }else{
-                //log.debug('no tiene local currency', arrAuxiliar);
-                //para obtener el multibook
-                if (feature_Multi) {
-                  if (objResult[i].getValue(columns[6]) != '' && objResult[i].getValue(columns[6]) != '- None -' && objResult[i].getValue(columns[6]) != null) {
-                    var exchange_rate_multi = exchange_rate(objResult[i].getValue(columns[6]));
-                  } else {
-                    var exchange_rate_multi = objResult[i].getValue(columns[15]);
-                  }
-                } else {
-                  var exchange_rate_multi = objResult[i].getValue(columns[10]);
-                }
-
-                var impCalculado = redondear(objResult[i].getValue(columns[5])) * exchange_rate_multi;
-                arrAuxiliar[5] = redondear(impCalculado);
-              }
-              //log.debug('monto impuesto',arrAuxiliar[5]);
-
-              // 6. ID del Item
-              if (objResult[i].getValue(columns[9]) != null && objResult[i].getValue(columns[9]) != '- None -') {
-                arrAuxiliar[6] = objResult[i].getValue(columns[9]);
-              } else {
-                arrAuxiliar[6] = '';
-              }
-              //7. Cod. Document Type
-              arrAuxiliar[7] = objResult[i].getValue(columns[11]);
-              //8. Subisidaria ID
-              arrAuxiliar[8] = objResult[i].getValue(columns[8]);
-
-              if (param_Excel == 'T') {
-                //9. Nro. Document
-                arrAuxiliar[9] = objResult[i].getValue(columns[13]);
-              }
-
-              ArrReturn.push(arrAuxiliar);
-            }
-            if (!DbolStop) {
-              intDMinReg = intDMaxReg;
-              intDMaxReg += 1000;
-            }
-          } else {
-            DbolStop = true;
-          }
-        }
-        log.debug('Resultado de busqueda', ArrReturn);
-        ArrReturn = actualizarTaxResults(ArrReturn);
+        var impuestos = obtenerLineasImpuesto();
+        ArrReturn = actualizarTaxResults(impuestos);
         /******* IMPUESTOS DE IMPORTACION *******/
         if (ArrIOF.length != 0) {
           ArrReturn = ArrReturn.concat(ArrIOF); //se agregan lineas IOF
@@ -282,16 +132,26 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         var arrTransaction = new Array();
         var arrTemp = JSON.parse(context.value);
         var key;
+        var procesoImportacion = 'm';
+
         if (arrTemp["isError"] == "T") {
           context.write({
             key: context.key,
             value: arrTemp
           });
         } else {
+
+          if (arrTemp[0] == 'Journal') { //journals IOF CIDE Proceso Manual - Automatico
+            if (verificarPagoImportacion(arrTemp[10])) {
+              procesoImportacion = 'a';
+              log.debug('arrTemp journal', 'El bill payment asociado tiene tax result de importacion.');
+            }
+          }
+
           if (param_Excel == 'T') {
             if (arrTemp[5] != 0) { //los que tienen monto 0 no se mandan
               key = context.key;
-            }else{
+            } else {
               return false;
             }
           } else {
@@ -301,24 +161,28 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
             if (arrTemp[7] == '55') { //items de inventario
               key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
-            if (arrTemp[0] == 'Journal') { //journals IOF
-              key = arrTemp[9] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // idJournal|tributo|receita|id subsi
+            if (arrTemp[0] == 'Journal') { //journals IOF CIDE Proceso Manual - Automatico
+              key = arrTemp[9] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8] + '|' + procesoImportacion; // idJournal|tributo|receita|id subsi
+            }
+            if (arrTemp[0] == 'VendPymt') { // Importaciones Proceso Automatico
+              key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
           }
 
           if (arrTemp[0] == 'Journal') {
             if (verificarImportacion(Number(arrTemp[6]))) {
+              arrTemp.push(procesoImportacion);
               context.write({
                 key: key,
                 value: {
                   Transaction: arrTemp
                 }
               });
-            }else{
+            } else {
               log.debug('Alerta en map', 'El vendor del bill de importación, no es del extranjero.');
             }
           } else {
-            if (arrTemp[7] == '55' || arrTemp[7] == '99') {
+            if (arrTemp[7] == '55' || arrTemp[7] == '99' || arrTemp[0] == 'VendPymt') {
               context.write({
                 key: key,
                 value: {
@@ -347,7 +211,6 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         var arrAuxiliar = new Array();
         var i_tipo = "";
         var arreglo = context.values;
-        var key = context.key;
         var tamano = arreglo.length;
         //log.debug("separacion", '**********************************************');
         //log.debug("key", key);
@@ -375,25 +238,18 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
             arrAuxiliar.push(arrTransaction[0][7]); //se agrega el cod document type
           } else {
             arrAuxiliar.push(arrTransaction[0][9]); //se agrega el id bill importacion
-            var arrayLLave = key.split('|');
-            key = 'IOF'; //se cambia por el conflico cuando se cambia idioma
-            log.debug('llave nueva para IOF transaction', key);
           }
 
           arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
 
-          if (arrTransaction[0][7] == '99') { //se realiza esto porque hay conflico cuando se cambia de idioma
-            var arrayLLave = key.split('|');
-            arrayLLave[1] = setearNombreTributo(arrayLLave[1]);
-            key = arrayLLave.join('|');
-            log.debug('llave nueva para servicio', key);
+          if (arrTransaction[0][0] == 'Journal') { /* esto para validar en el schedule dec los pagos */
+            arrAuxiliar.push(arrTransaction[0][11]); //se agrega el proceso de importacion
           }
 
           log.debug("arreglo en reduce", arrAuxiliar);
-          log.debug("llave en reduce", key);
-
+          //log.debug("llave en reduce", key);
           context.write({
-            key: key,
+            key: 1,
             value: {
               arreglo: arrAuxiliar, //Vector
               Tipo: i_tipo, //tipo de item "Service o Inventory"
@@ -416,7 +272,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
           arrAuxiliar.push(Auxiliar);
 
           context.write({
-            key: context.key,
+            key: 1,
             value: {
               arreglo: arrAuxiliar,
               Tipo: i_tipo,
@@ -428,7 +284,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
       } catch (e) {
         log.error("Error en reduce", e);
         context.write({
-          key: context.key,
+          key: 1,
           value: {
             isError: "T",
             error: error
@@ -442,7 +298,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         var arrInvoice = new Array();
         var arrBill = new Array();
         var arrJournal = new Array();
-        var arrArchivo = new Array();
+        var arrBillPayment = new Array();
 
         context.output.iterator().each(function(key, value) {
           var obj = JSON.parse(value);
@@ -453,12 +309,15 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
             arrInvoice.push(obj.arreglo);
           } else if (clase == 'Journal') {
             arrJournal.push(obj.arreglo);
+          } else if (clase == 'VendPymt') {
+            arrBillPayment.push(obj.arreglo);
           }
           return true;
         });
         log.debug('Array Bills Summarize', arrBill);
         log.debug('Array Invoices Summarize', arrInvoice);
         log.debug('Array Journal Summarize', arrJournal);
+        log.debug('Array Bill Payment Summarize', arrBillPayment);
 
         //Generamos el archivirigillo
         if (param_Excel == 'F') {
@@ -484,6 +343,14 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
               StrArchivo += arrJournal[j].join(';');
             } else {
               StrArchivo += arrJournal[j].join(';') + '|';
+            }
+          }
+          StrArchivo += '@';
+          for (var j = 0; j < arrBillPayment.length; j++) {
+            if (j == arrBillPayment.length - 1) {
+              StrArchivo += arrBillPayment[j].join(';');
+            } else {
+              StrArchivo += arrBillPayment[j].join(';') + '|';
             }
           }
         } else {
@@ -512,6 +379,14 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
               StrArchivo += arrJournal[j].toString() + '|';
             }
           }
+          StrArchivo += '@';
+          for (var j = 0; j < arrBillPayment.length; j++) {
+            if (j == arrBillPayment.length - 1) {
+              StrArchivo += arrBillPayment[j].toString();
+            } else {
+              StrArchivo += arrBillPayment[j].toString() + '|';
+            }
+          }
         }
 
         var idFile = SaveFileAux(StrArchivo);
@@ -522,6 +397,176 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         libreria.sendemailTranslate(error, LMRY_script, language);
         NoData(true);
       }
+    }
+
+    function verificarPagoImportacion(idBillPayment) {
+      var transactionSearchObj = search.create({
+        type: "transaction",
+        filters: [
+          ["internalid", "anyof", idBillPayment],
+          "AND",
+          ["mainline", "is", "T"],
+          "AND",
+          ["posting", "is", "T"],
+          "AND",
+          ["memorized", "is", "F"],
+          "AND",
+          ["formulatext: CASE WHEN {custrecord_lmry_br_transaction.custrecord_lmry_br_id_tribute} = '04' OR {custrecord_lmry_br_transaction.custrecord_lmry_br_type} = 'CIDE' THEN 1 ELSE 0 END", "is", "1"]
+        ],
+        columns: [
+          search.createColumn({
+            name: "formulatext",
+            formula: "{custrecord_lmry_br_transaction.custrecord_lmry_br_id_tribute}",
+            label: "0. Tributo ID"
+          }),
+          search.createColumn({
+            name: "formulatext",
+            formula: "{custrecord_lmry_br_transaction.custrecord_lmry_br_type}",
+            label: "1. Tributo"
+          })
+        ]
+      });
+      var searchResultCount = transactionSearchObj.runPaged().count;
+      log.debug("transactionSearchObj result count", searchResultCount);
+
+      if (searchResultCount != 0) {
+        return true;
+      }
+
+      return false;
+    }
+
+    function obtenerLineasImpuesto() {
+      var intDMinReg = 0;
+      var intDMaxReg = 1000;
+      var DbolStop = false;
+      var ArrReturn = new Array();
+
+      var savedsearch = search.load({
+        /* LatamReady - BR DCTF Taxes MPRD */
+        id: 'customsearch_lmry_br_dctf_imp_mprd'
+      });
+
+      if (feature_Subsi) {
+        var subsidiaryFilter = search.createFilter({
+          name: 'subsidiary',
+          operator: search.Operator.IS,
+          values: SubsidiariasContempladas
+        });
+        savedsearch.filters.push(subsidiaryFilter);
+      }
+
+      var periodFilter = search.createFilter({
+        name: 'postingperiod',
+        operator: search.Operator.IS,
+        values: [param_Periodo]
+      });
+      savedsearch.filters.push(periodFilter);
+
+      if (feature_Multi) {
+        var multibookFilter = search.createFilter({
+          name: 'accountingbook',
+          join: 'accountingtransaction',
+          operator: search.Operator.IS,
+          values: [param_Multi]
+        });
+        savedsearch.filters.push(multibookFilter);
+        //columna 15 Exchange MULTIBOOK
+        var exchangerate_Column = search.createColumn({
+          name: "exchangerate",
+          join: "accountingTransaction",
+          summary: "GROUP"
+        });
+        savedsearch.columns.push(exchangerate_Column);
+      }
+
+      var searchResult = savedsearch.run();
+      while (!DbolStop) {
+        var objResult = searchResult.getRange(intDMinReg, intDMaxReg);
+        if (objResult != null) {
+          if (objResult.length != 1000) {
+            DbolStop = true;
+          }
+          for (var i = 0; i < objResult.length; i++) {
+            var columns = objResult[i].columns;
+            var arrAuxiliar = new Array();
+            // 0. Tipo
+            arrAuxiliar[0] = objResult[i].getValue(columns[7]);
+            // 1. Codigo Tributo
+            if (objResult[i].getValue(columns[0]) != '- None -' && objResult[i].getValue(columns[0]) != null) {
+              arrAuxiliar[1] = objResult[i].getValue(columns[0]);
+            } else {
+              arrAuxiliar[1] = '';
+            }
+            // 2. Tributo
+            if (objResult[i].getValue(columns[1]) != '- None -' && objResult[i].getValue(columns[1]) != null) {
+              arrAuxiliar[2] = objResult[i].getValue(columns[1]);
+            } else {
+              arrAuxiliar[2] = '';
+            }
+            // 3. ID Receita
+            if (objResult[i].getValue(columns[3]) != '- None -' && objResult[i].getValue(columns[3]) != null) {
+              arrAuxiliar[3] = objResult[i].getValue(columns[3]);
+            } else {
+              arrAuxiliar[3] = '';
+            }
+            // 4.Periodicidad
+            if (objResult[i].getValue(columns[4]) != '- None -' && objResult[i].getValue(columns[4]) != null) {
+              arrAuxiliar[4] = objResult[i].getValue(columns[4]);
+            } else {
+              arrAuxiliar[4] = '';
+            }
+            // 5. Monto
+            var impLocalCurrency = objResult[i].getValue(columns[14]);
+            //log.debug('impLocalCurrency',impLocalCurrency);
+            if (impLocalCurrency != null && impLocalCurrency != 0 && impLocalCurrency != '- None -') {
+              arrAuxiliar[5] = redondear(impLocalCurrency);
+            } else {
+              //log.debug('no tiene local currency', arrAuxiliar);
+              //para obtener el multibook
+              if (feature_Multi) {
+                if (objResult[i].getValue(columns[6]) != '' && objResult[i].getValue(columns[6]) != '- None -' && objResult[i].getValue(columns[6]) != null) {
+                  var exchange_rate_multi = exchange_rate(objResult[i].getValue(columns[6]));
+                } else {
+                  var exchange_rate_multi = objResult[i].getValue(columns[15]);
+                }
+              } else {
+                var exchange_rate_multi = objResult[i].getValue(columns[10]);
+              }
+
+              var impCalculado = redondear(objResult[i].getValue(columns[5])) * exchange_rate_multi;
+              arrAuxiliar[5] = redondear(impCalculado);
+            }
+            //log.debug('monto impuesto',arrAuxiliar[5]);
+
+            // 6. ID del Item
+            if (objResult[i].getValue(columns[9]) != null && objResult[i].getValue(columns[9]) != '- None -') {
+              arrAuxiliar[6] = objResult[i].getValue(columns[9]);
+            } else {
+              arrAuxiliar[6] = '';
+            }
+            //7. Cod. Document Type
+            arrAuxiliar[7] = objResult[i].getValue(columns[11]);
+            //8. Subisidaria ID
+            arrAuxiliar[8] = objResult[i].getValue(columns[8]);
+
+            if (param_Excel == 'T') {
+              //9. Nro. Document
+              arrAuxiliar[9] = objResult[i].getValue(columns[13]);
+            }
+
+            ArrReturn.push(arrAuxiliar);
+          }
+          if (!DbolStop) {
+            intDMinReg = intDMaxReg;
+            intDMaxReg += 1000;
+          }
+        } else {
+          DbolStop = true;
+        }
+      }
+      log.debug('Resultado de busqueda impuestos', ArrReturn);
+      return ArrReturn;
     }
 
     function verificarImportacion(idBill) {
@@ -539,7 +584,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         columns: ['custentity_lmry_countrycode']
       });
 
-      if (vendor.custentity_lmry_countrycode != '1058') {//CODE BRAZIL
+      if (vendor.custentity_lmry_countrycode != '1058') { //CODE BRAZIL
         esImportacion = true;
       }
 
@@ -566,8 +611,8 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
         savedsearch.filters.push(subsidiaryFilter);
       }
 
-      var formulaPeriod = "CASE WHEN {custbody_lmry_cl_period.custrecord_lmry_cl_period_fact_actual.id}='"+param_Periodo+"' THEN 1 ELSE 0 END";
-      log.debug('formulaPeriod',formulaPeriod);
+      var formulaPeriod = "CASE WHEN {custbody_lmry_cl_period.custrecord_lmry_cl_period_fact_actual.id}='" + param_Periodo + "' THEN 1 ELSE 0 END";
+      log.debug('formulaPeriod', formulaPeriod);
       var periodFilter = search.createFilter({
         name: 'formulanumeric',
         formula: formulaPeriod,
@@ -584,7 +629,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
           values: [param_Multi]
         });
         savedsearch.filters.push(multibookFilter);
-        //10
+        //11
         var montoMultibook = search.createColumn({
           name: "formulacurrency",
           formula: "nvl({accountingtransaction.debitamount},0)",
@@ -608,10 +653,10 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
             var columns = objResult[i].columns;
             arrAuxiliar = new Array();
 
-            for (var j = 0; j < 10; j++) { //no queremos que se guarden los tipos de cambio
+            for (var j = 0; j < 11; j++) { //no queremos que se guarden los tipos de cambio
               if (j == 5) { //monto
                 if (feature_Multi) {
-                  arrAuxiliar[j] = Number(objResult[i].getValue(columns[10]));
+                  arrAuxiliar[j] = Number(objResult[i].getValue(columns[11]));
                   arrAuxiliar[j] = redondear(arrAuxiliar[j]);
                 } else {
                   arrAuxiliar[j] = Number(objResult[i].getValue(columns[j]));
@@ -624,7 +669,7 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
 
             if (arrAuxiliar[2] == 'CIDE') {
               ArrCIDE.push(arrAuxiliar);
-            }else{
+            } else {
               ArrIOF.push(arrAuxiliar);
             }
           }
@@ -655,7 +700,6 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
           arreglo[i][1] = '03';
           if (arreglo[i][7] == '55') {
             arreglo[i][3] = Code_receita_ipi_inv;
-            //arreglo[i][] = Code_receita_ipi_inv;
             arreglo[i][4] = Periodicidad_ipi_inv;
           }
         }
@@ -663,7 +707,6 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
           arreglo[i][1] = '06';
           if (arreglo[i][7] == '55') {
             arreglo[i][3] = Code_receita_pis_inv;
-            //arreglo[i][] = Code_receita_pis_inv;
             arreglo[i][4] = Periodicidad_pis_inv;
           }
         }
@@ -671,7 +714,6 @@ define(['N/search', 'N/config', 'N/log', 'require', 'N/file', 'N/runtime', 'N/qu
           arreglo[i][1] = '07';
           if (arreglo[i][7] == '55') {
             arreglo[i][3] = Code_receita_cofins_inv;
-            //arreglo[i][] = Code_receita_cofins_inv;
             arreglo[i][4] = Periodicidad_cofins_inv;
           }
         }
