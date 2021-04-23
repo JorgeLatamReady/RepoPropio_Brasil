@@ -137,7 +137,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var ArrImpMinimos = new Array();
     var PeriodAnt = '';
     var ArrR11Nomina = new Array();
-
+    var EPayLines = new Array();
     var Filiales;
     var SubsidiariasContempladas;
 
@@ -1135,6 +1135,10 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       return filasSubregistro;
     }
 
+    function formatLineR11(){
+
+    }
+
     function CargarR11(arrTotal) {
       for (var i = 0; i < arrTotal.length; i++) {
         r11Columna = [];
@@ -1332,6 +1336,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
             ArrSetupDCTF_Purchases.push(arrAuxiliar);
           } else if (arrAuxiliar[7] == '55') {
             ArrSetupDCTF_Purchases_Inv.push(arrAuxiliar);
+          } else if (arrAuxiliar[7] == 'DF') {
+            EPayLines.push(arrAuxiliar);//los que tienen multas y juros
           }
         }
       }
@@ -1361,7 +1367,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         arrAuxiliar = arrAuxiliarBillPayment[j].split(';');
         if (arrAuxiliar[5] == 'VendPymt') {
-          if (arrAuxiliar[0] == '09') { //CIDE
+          if (arrAuxiliar[7] == 'DF') {
+            EPayLines.push(arrAuxiliar);
+          } else if (arrAuxiliar[0] == '09') { //CIDE
             ArrCIDEBillPay.push(arrAuxiliar);
           } else if (arrAuxiliar[0] == '04') {
             ArrIOFBillPay.push(arrAuxiliar);

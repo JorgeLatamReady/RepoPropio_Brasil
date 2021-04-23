@@ -137,6 +137,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
         var arrTemp = JSON.parse(context.value);
         var key;
         var procesoImportacion = 'm';
+        var validacion = false;
 
         if (arrTemp["isError"] == "T") {
           context.write({
@@ -154,35 +155,44 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           /* PARA E-PAYMENT */
           if (arrTemp[7] == 'DF') {
             var jsonDataPago = obtenerDetallePago(arrTemp[1], arrTemp[10]);
-            var dataReceita = obtenerReceita(arrTemp[3]);
+            if (jsonDataPago != null) {
+              var dataReceita = obtenerReceita(arrTemp[3]);
 
-            var idBill = arrTemp[1];
-            var receitaDARF = arrTemp[4];
+              var idBill = arrTemp[1];
+              var receitaDARF = arrTemp[4];
 
-            arrTemp[1] = dataReceita['custrecord_lmry_br_id_tax'];
-            arrTemp[3] = dataReceita['custrecord_lmry_br_code_revenue'];
-            arrTemp[4] = dataReceita['custrecord_lmry_br_id_periodicity'];
-            arrTemp[10] = idBill;
-            arrTemp[11] = receitaDARF;
-            arrTemp[12] = jsonDataPago.montoPago;
-            arrTemp[13] = jsonDataPago.documentNumber;
-
-          }
-
-          if (param_Excel == 'T') {
-            if (arrTemp[5] != 0) { //los que tienen monto 0 no se mandan
-              key = context.key;
+              arrTemp[0] = jsonDataPago.type;
+              arrTemp[1] = dataReceita['custrecord_lmry_br_id_tax'];
+              arrTemp[3] = dataReceita['custrecord_lmry_br_code_revenue'];
+              arrTemp[4] = dataReceita['custrecord_lmry_br_id_periodicity'];
+              arrTemp[13] = idBill;
+              arrTemp[14] = receitaDARF;
+              arrTemp[15] = jsonDataPago.montoPago;
+              arrTemp[16] = jsonDataPago.documentNumber;
+              validacion = true;
             } else {
               return false;
             }
+          }
+
+          if (param_Excel == 'T') {
+            if (arrTemp[7] != 'DF') {
+              if (arrTemp[5] != 0) { //los que tienen monto 0 no se mandan
+                key = context.key;
+              } else {
+                return false;
+              }
+            }else{
+              key = context.key;
+            }
           } else {
-            if (arrTemp[7] == '99') {//factura de servicio
+            if (arrTemp[7] == '99') { //factura de servicio
               key = arrTemp[0] + '|' + arrTemp[1] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|cod. tributo|receita|id subsi
             }
-            if (arrTemp[7] == '55') {//factura de inventario
+            if (arrTemp[7] == '55') { //factura de inventario
               key = arrTemp[0] + '|' + arrTemp[2] + '|' + arrTemp[3] + '|' + arrTemp[8]; // type|tributo|receita|id subsi
             }
-            if (arrTemp[7] == 'DF') {//E-pay DARF(R11)
+            if (arrTemp[7] == 'DF') { //E-pay DARF(R11)
               key = arrTemp[10];
             }
             if (arrTemp[0] == 'Journal') { //Journals IOF CIDE Proceso Manual (R10 R11)/Automatico(R11)
@@ -206,7 +216,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
               log.debug('Alerta en map', 'El vendor del bill de importación, no es del extranjero.');
             }
           } else {
-            if (arrTemp[7] == 'DF' || arrTemp[7] == '55' || arrTemp[7] == '99' || arrTemp[0] == 'VendPymt') {
+            if (arrTemp[7] == '55' || arrTemp[7] == '99' || arrTemp[0] == 'VendPymt') {
               context.write({
                 key: key,
                 value: {
@@ -246,41 +256,48 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
         }
 
         if (param_Excel == 'F') {
-          if (arrTransaction[0][0] == 'VendBill' || arrTransaction[0][0] == 'CustInvc') {
-            if (arrTransaction[0][7] == '55' || arrTransaction[0][7] == '99') {
-              arrAuxiliar[0] = arrTransaction[0][1];
-              arrAuxiliar[1] = arrTransaction[0][2];
-              arrAuxiliar[2] = arrTransaction[0][3];
-              arrAuxiliar[3] = arrTransaction[0][4];
-              arrAuxiliar[4] = 0;
-              arrAuxiliar[5] = arrTransaction[0][0];
-              for (var i = 0; i < arrTransaction.length; i++) {
-                //log.debug('montos a sumar:', arrTransaction[i][5]);
-                arrAuxiliar[4] += arrTransaction[i][5];
-              }
-              //log.debug('montos total:', arrAuxiliar[4]);
-              arrAuxiliar.push(i_tipo);
-              arrAuxiliar.push(arrTransaction[0][7]); //se agrega el cod document type
-              arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
+          arrAuxiliar[0] = arrTransaction[0][1];
+          arrAuxiliar[1] = arrTransaction[0][2];
+          arrAuxiliar[2] = arrTransaction[0][3];
+          arrAuxiliar[3] = arrTransaction[0][4];
 
-            } else if (arrTransaction[0][7] == 'DF') {
-              arrAuxiliar[0] = arrTransaction[0][1];
-              arrAuxiliar[1] = arrTransaction[0][2];
-              arrAuxiliar[2] = arrTransaction[0][3];
-              arrAuxiliar[3] = arrTransaction[0][4];
+          if (arrTransaction[0][0] == 'VendBill' || arrTransaction[0][0] == 'CustInvc') {
+            arrAuxiliar[4] = 0;
+            arrAuxiliar[5] = arrTransaction[0][0];
+            for (var i = 0; i < arrTransaction.length; i++) {
+              arrAuxiliar[4] += arrTransaction[i][5];
+            }
+            arrAuxiliar.push(i_tipo);
+            arrAuxiliar.push(arrTransaction[0][7]); //se agrega el cod document type
+            arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
+
+          } else if (arrTransaction[0][0] == 'Journal') {
+            arrAuxiliar[4] = 0;
+            arrAuxiliar[5] = arrTransaction[0][0];
+            for (var i = 0; i < arrTransaction.length; i++) {
+              arrAuxiliar[4] += arrTransaction[i][5];
+            }
+            arrAuxiliar.push(i_tipo);
+            arrAuxiliar.push(arrTransaction[0][9]); //se agrega el id bill importacion
+            arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
+            /* esto para validar en el schedule dec los pagos */
+            arrAuxiliar.push(arrTransaction[0][11]); //se agrega el tipo  de proceso de importacion
+
+          } else if (arrTransaction[0][0] == 'VendPymt') {
+            if (arrTransaction[0][7] == 'DF') {
+              /* E PAYMENT */
               for (var i = 0; i < arrTransaction.length; i++) {
-                arrAuxiliar[4] = arrTransaction[i][12];//Pago
+                arrAuxiliar[4] = arrTransaction[i][15]; //Monto Pago
                 arrAuxiliar[5] = arrTransaction[0][0];
                 arrAuxiliar[6] = i_tipo;
                 arrAuxiliar[7] = arrTransaction[0][7]; //se agrega el cod document type
                 arrAuxiliar[8] = arrTransaction[0][8]; //se agrega id subsidiaria
-                arrAuxiliar[9] = arrTransaction[0][9]; //se agrega id subsidiaria
-                arrAuxiliar[10] = arrTransaction[0][10]; //se agrega id subsidiaria
-                arrAuxiliar[11] = arrTransaction[0][11]; //se agrega id subsidiaria
-                arrAuxiliar[12] = arrTransaction[0][12]; //se agrega id subsidiaria
-                arrAuxiliar[13] = arrTransaction[i][13]; //se agrega id subsidiaria
-                arrAuxiliar[14] = 0.00; //Juros
-                arrAuxiliar[15] = 0.00; //multas
+                arrAuxiliar[9] = arrTransaction[0][9]; //Concepto
+                arrAuxiliar[10] = arrTransaction[0][11]; //Fecha Vencimiento Bill
+                arrAuxiliar[11] = arrTransaction[0][14]; //receita DARF
+                arrAuxiliar[12] = arrTransaction[i][16]; //Document Number
+                arrAuxiliar[13] = 0.00; //Juros
+                arrAuxiliar[14] = 0.00; //multas
 
                 //log.debug("llave en reduce", key);
                 log.debug("arreglo en reduce", arrAuxiliar);
@@ -289,53 +306,33 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
                   value: {
                     arreglo: arrAuxiliar, //Vector
                     Tipo: i_tipo, //tipo de item "Service o Inventory"
-                    Clase: arrTransaction[0][0] // de Transaccion (Bill o Invoice o Journal)
+                    Clase: arrTransaction[0][0] //Tipo de Transaccion
                   }
                 });
               }
 
               if (arrTransaction[0][5] != 0 || arrTransaction[0][6] != 0) {
-                arrAuxiliar[4] = 0.00;//Pago
-                arrAuxiliar[14] = arrTransaction[0][5]; //Juros
-                arrAuxiliar[15] = arrTransaction[0][6]; //multas
-              } else{
+                //Para multas y juros se pondra el tipo bill ya que la data la sacaremos de ahi. No hay manera de identificar que bill payment de multas y juros pertenece al bill darf
+                arrAuxiliar[0] = 'VendBill';
+                arrAuxiliar[4] = 0.00; //Pago
+                arrAuxiliar[12] = arrTransaction[0][12]; //Document Number Bill DARF
+                arrAuxiliar[13] = arrTransaction[0][5]; //Juros
+                arrAuxiliar[14] = arrTransaction[0][6]; //multas
+              } else {
                 validacion = true;
               }
+            } else {
+              /* IMPORTACIONES IOF Y CIDE */
+              arrAuxiliar[4] = 0;
+              arrAuxiliar[5] = arrTransaction[0][0];
+              for (var i = 0; i < arrTransaction.length; i++) {
+                arrAuxiliar[4] += arrTransaction[i][5];
+              }
+              arrAuxiliar.push(i_tipo);
+              arrAuxiliar.push(arrTransaction[0][7]); //se agrega el cod document type
+              arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
+            }
 
-            }
-          } else if (arrTransaction[0][0] == 'Journal') {
-            arrAuxiliar[0] = arrTransaction[0][1];
-            arrAuxiliar[1] = arrTransaction[0][2];
-            arrAuxiliar[2] = arrTransaction[0][3];
-            arrAuxiliar[3] = arrTransaction[0][4];
-            arrAuxiliar[4] = 0;
-            arrAuxiliar[5] = arrTransaction[0][0];
-            for (var i = 0; i < arrTransaction.length; i++) {
-              //log.debug('montos a sumar:', arrTransaction[i][5]);
-              arrAuxiliar[4] += arrTransaction[i][5];
-            }
-            //log.debug('montos total:', arrAuxiliar[4]);
-            arrAuxiliar.push(i_tipo);
-            arrAuxiliar.push(arrTransaction[0][9]); //se agrega el id bill importacion
-            arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
-            /* esto para validar en el schedule dec los pagos */
-            arrAuxiliar.push(arrTransaction[0][11]); //se agrega el tipo  de proceso de importacion
-
-          } else if (arrTransaction[0][0] == 'VendPymt') {
-            arrAuxiliar[0] = arrTransaction[0][1];
-            arrAuxiliar[1] = arrTransaction[0][2];
-            arrAuxiliar[2] = arrTransaction[0][3];
-            arrAuxiliar[3] = arrTransaction[0][4];
-            arrAuxiliar[4] = 0;
-            arrAuxiliar[5] = arrTransaction[0][0];
-            for (var i = 0; i < arrTransaction.length; i++) {
-              //log.debug('montos a sumar:', arrTransaction[i][5]);
-              arrAuxiliar[4] += arrTransaction[i][5];
-            }
-            //log.debug('montos total:', arrAuxiliar[4]);
-            arrAuxiliar.push(i_tipo);
-            arrAuxiliar.push(arrTransaction[0][7]); //se agrega el cod document type
-            arrAuxiliar.push(arrTransaction[0][8]); //se agrega id subsidiaria
           }
 
           log.debug("arreglo en reduce", arrAuxiliar);
@@ -497,7 +494,8 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
     function obtenerDetallePago(idBill, idBillPayment) {
       var jsonData = {
         montoPago: 0,
-        documentNumber: ''
+        documentNumber: '',
+        type: ''
       }
 
       var transactionSearchObj = search.create({
@@ -542,14 +540,26 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             name: "formulatext",
             formula: "{tranid}",
             label: "3. CHEQUE #"
+          }),
+          search.createColumn({
+            name: "type",
+            label: "4. Type"
           })
+
         ]
       });
 
       transactionSearchObj.run().each(function(result) {
         var columns = result.columns;
-        jsonData.montoPago = result.getValue(columns[0]);
-        jsonData.documentNumber = result.getValue(columns[3]);
+        var trasferFile = result.getValue(columns[1]);
+        log.debug('trasferFile', trasferFile);
+        if (trasferFile != null && trasferFile != "" && trasferFile != "- None -") { //valida que bill payment paso por E Payment
+          jsonData.montoPago = result.getValue(columns[0]);
+          jsonData.documentNumber = result.getValue(columns[3]);
+          jsonData.type = result.getValue(columns[4]);
+        } else {
+          jsonData = null;
+        }
         return true;
       });
 
@@ -651,6 +661,10 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             arrAuxiliar[9] = objResult[i].getValue(columns[1]);
             //10. ID Bill Payment
             arrAuxiliar[10] = objResult[i].getValue(columns[8]);
+            //11. Fecha de Vencimiento (Bill)
+            arrAuxiliar[11] = objResult[i].getValue(columns[11]);
+            //12. Document Number (Bill)
+            arrAuxiliar[12] = objResult[i].getValue(columns[12]);
 
             arrReturn.push(arrAuxiliar);
           }
