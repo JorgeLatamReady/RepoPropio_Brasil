@@ -85,7 +85,10 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var ArrSetupDCTF_Purchases = new Array();
     var Arr_WHT_Item = new Array();
     var Arr_WHT_No_Item = new Array();
+    var ArrIOFBillPay = new Array();
+    var ArrCIDEBillPay = new Array();
     var ArrJournalImportacion = new Array();
+    var ArrJournalImportacionTemp = new Array();
     var ArrJournalR12 = new Array();
     var LineasR12 = new Array();
     var ArrJournalR14 = new Array();
@@ -97,7 +100,6 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var Filiales;
     var SubsidiariasContempladas;
     var ArrLineasNomina = new Array();
-    var ArrR11Nomina = new Array();
 
     function execute(context) {
       try {
@@ -123,7 +125,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         ArrSetupDCTF_Purchases = agruparLineas(ArrSetupDCTF_Purchases);
         ArrSetupDCTF_Sales_Inv = agruparLineas(ArrSetupDCTF_Sales_Inv);
         ArrSetupDCTF_Purchases_Inv = agruparLineas(ArrSetupDCTF_Purchases_Inv);
-        ArrJournalImportacion = agruparLineas(ArrJournalImportacion);
+        ArrJournalImportacion = agruparLineas(ArrJournalImportacion);//importaciones proceso manual
+        ArrIOFBillPay = agruparLineas(ArrIOFBillPay);//importaciones proceso automatico
+        ArrCIDEBillPay = agruparLineas(ArrCIDEBillPay);//importaciones proceso automatico
 
         if (id_account_payroll != '' && id_account_payroll != '- None -' && id_account_payroll != null) {
           log.debug('cuentas payroll', Var_Acount_Payroll);
@@ -172,6 +176,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       arrAuxiliarVentas = ArreglodeTodo[0].split('|');
       arrAuxiliarCompra = ArreglodeTodo[1].split('|');
       arrAuxiliarJournal = ArreglodeTodo[2].split('|');
+      var arrAuxiliarBillPayment = ArreglodeTodo[3].split('|');
 
       for (var i = 0; i < arrAuxiliarVentas.length; i++) {
         if (arrAuxiliarVentas[i] == '') {
@@ -207,14 +212,34 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         arrAuxiliar = arrAuxiliarJournal[j].split(';');
         if (arrAuxiliar[0] == 'Journal') {
-          ArrJournalImportacion.push(arrAuxiliar);
+          if (arrAuxiliar[11] == 'm') {
+            ArrJournalImportacion.push(arrAuxiliar);
+          }
+          ArrJournalImportacionTemp.push(arrAuxiliar);
         }
       }
+
+      for (var j = 0; j < arrAuxiliarBillPayment.length; j++) {
+        if (arrAuxiliarBillPayment[j] == '') {
+          break;
+        }
+        arrAuxiliar = arrAuxiliarBillPayment[j].split(';');
+        if (arrAuxiliar[0] == 'VendPymt') {
+          if (arrAuxiliar[1] == '04') {
+            ArrIOFBillPay.push(arrAuxiliar);
+          } else if (arrAuxiliar[1] == '09') {
+            ArrCIDEBillPay.push(arrAuxiliar);
+          }
+        }
+      }
+
       log.debug('valor de arreglo de Ventas- Servicios', ArrSetupDCTF_Sales);
       log.debug('valor de arreglo de Ventas - INventario', ArrSetupDCTF_Sales_Inv);
       log.debug('valor de arreglo de compras - Servicios', ArrSetupDCTF_Purchases);
       log.debug('vaor de arreglo de comrpas - Inventario', ArrSetupDCTF_Purchases_Inv);
       log.debug('Journals de Importacion', ArrJournalImportacion);
+      log.error('vaor de arreglo de Bill Pay IOF', ArrIOFBillPay);
+      log.error('vaor de arreglo de Bill Pay CIDE', ArrCIDEBillPay);
     }
 
     function ObtenerRecetasVentas() {
@@ -538,7 +563,6 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         /* SE AGREGA A LA MATRIZ GENERAL ORDENADA */
         if (matrizOrdenada.length != 0) {
           var posicion = -1;
-          var flag = true;
           for (var m = 0; m < matrizOrdenada.length; m++) {
             if (matrizOrdenada[m][2] == matrizGeneral[i][2]) {
               posicion = m;
@@ -1319,8 +1343,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
 
     function verificarImportacion(idJournal) {
       var resultado = false;
-      for (var i = 0; i < ArrJournalImportacion.length; i++) {
-        if (ArrJournalImportacion[i][7] == idJournal) {
+      for (var i = 0; i < ArrJournalImportacionTemp.length; i++) {
+        if (ArrJournalImportacionTemp[i][7] == idJournal) {
           resultado = true;
           break;
         }
@@ -1716,7 +1740,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
       }
 
-      agregarLineasImportacion(ArrJournalImportacion);
+      var importacionesTotal = ArrJournalImportacion.concat(ArrIOFBillPay, ArrCIDEBillPay);
+      agregarLineasImportacion(importacionesTotal);
 
       //CARGAR IRPJ
       if (param_Lucro_Conta != 0) {
@@ -1905,7 +1930,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       }
       /************************************** CARGAR IMPOSTOS DE NOMINA *********************************************/
       if (ArrLineasNomina.length != 0) {
-        colocarSeparador("IMPOSTOS DE NOMINA");
+        colocarSeparador("IMPUESTOS SOBRE LA NÓMINA");
         for (var i = 0; i < ArrLineasNomina.length; i++) {
           strRetenciones_aux += '<Row>';
           //NUMERO DOC
@@ -2074,7 +2099,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
       }
 
-      agregarLineasImportacion(ArrJournalImportacion);
+      var importacionesTotal = ArrJournalImportacion.concat(ArrIOFBillPay, ArrCIDEBillPay);
+      agregarLineasImportacion(importacionesTotal);
 
       agregarSeparador = true;
       for (var j = 0; j < Arr_WHT_No_Item.length; j++) {
@@ -2201,7 +2227,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       }
       /************************************** CARGAR IMPOSTOS DE NOMINA *********************************************/
       if (ArrLineasNomina.length != 0) {
-        colocarSeparador("IMPOSTOS DE NOMINA");
+        colocarSeparador("IMPUESTOS SOBRE LA NÓMINA");
         for (var i = 0; i < ArrLineasNomina.length; i++) {
           strRetenciones_aux += '<Row>';
           //NUMERO DOC
