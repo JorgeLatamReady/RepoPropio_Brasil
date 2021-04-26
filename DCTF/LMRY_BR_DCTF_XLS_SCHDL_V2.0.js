@@ -144,9 +144,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         ArrLineasNomina = ObtenerDataPagosTributos(25); //Pagamento Impostos de Nomina
         VectorPagosTributos = agruparR11(VectorPagosTributos);
         ArrLineasNomina = agruparR11(ArrLineasNomina);
-        formatEPayLines(ArrEPayLines); //formateara la data a la estructura de datos que se tiene para pagos por Journal
+        /*formatEPayLines(ArrEPayLines); //formateara la data a la estructura de datos que se tiene para pagos por Journal
         VectorPagosTributos = VectorPagosTributos.concat(ArrEPayLinesPago);
-        ArrLineasNomina = ArrLineasNomina.concat(ArrEPayLinesNomina);
+        ArrLineasNomina = ArrLineasNomina.concat(ArrEPayLinesNomina);*/
         //R12
         ArrJournalR12 = obtenerJournalsR12_R14('R12');
         //R14
@@ -1043,7 +1043,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         arrTemporal.push(total);
 
         //TIPO DE CONCEPTO
-        var concepto = objResult[i].getValue(columns[9]);
+        var concepto = Number(arrData[i][9]);
 
         if (concepto == 5) {
           ArrEPayLinesPago.push(arrTemporal);
