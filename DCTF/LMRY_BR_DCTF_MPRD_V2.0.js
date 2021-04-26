@@ -286,12 +286,20 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           } else if (arrTransaction[0][0] == 'VendPymt') {
             if (arrTransaction[0][7] == 'DF') {
               /* E PAYMENT */
+              var subsi = search.lookupFields({
+                type: search.Type.SUBSIDIARY,
+                id: arrTransaction[0][8],
+                columns: ['taxidnum']
+              });
+
+              var cnpjSubsi = subsi.taxidnum;
+
               for (var i = 0; i < arrTransaction.length; i++) {
                 arrAuxiliar[4] = arrTransaction[i][15]; //Monto Pago
                 arrAuxiliar[5] = arrTransaction[0][0];
                 arrAuxiliar[6] = i_tipo;
                 arrAuxiliar[7] = arrTransaction[0][7]; //se agrega el cod document type
-                arrAuxiliar[8] = arrTransaction[0][8]; //se agrega id subsidiaria
+                arrAuxiliar[8] = cnpjSubsi; //se agrega cnpj subsidiaria
                 arrAuxiliar[9] = arrTransaction[0][9]; //Concepto
                 arrAuxiliar[10] = arrTransaction[0][11]; //Fecha Vencimiento Bill
                 arrAuxiliar[11] = arrTransaction[0][14]; //receita DARF
