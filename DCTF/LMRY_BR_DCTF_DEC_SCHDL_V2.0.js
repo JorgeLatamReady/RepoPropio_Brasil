@@ -137,7 +137,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var ArrImpMinimos = new Array();
     var PeriodAnt = '';
     var ArrR11Nomina = new Array();
-
+    var EPayLines = new Array();
+    var EPayLinesNomina = new Array();
+    var EPayLinesPago = new Array();
     var Filiales;
     var SubsidiariasContempladas;
 
@@ -169,7 +171,11 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         CargarR11(pagosTotales); //formatea la data de pagos a la estructura R11
         ArrJournalR11 = agruparPagos(ArrJournalR11);
         ArrR11Nomina = agruparPagos(ArrR11Nomina);
-        var strNomina = armarLineasNomina(ArrR11Nomina); //arma lineas r11 y r10 para el reporte
+        formatLinesR11(EPayLines);//formate la data de pagos de e payment para R11
+        ArrJournalR11 = ArrJournalR11.concat(EPayLinesPago);
+        var strNomina = '';
+        strNomina += armarLineasNomina(ArrR11Nomina); //arma lineas r11 y r10 para el reporte
+        strNomina += armarLineasNomina(EPayLinesNomina); //arma lineas r11 y r10 para el reporte
         /********************* CARGADO DE COMPENSACIONES Y SUSPENSIONES (R12/R14) *******************/
         var ArrJournalR12 = CargarJournals('R12');
         LineasR12 = CargarLineasR12_R14(ArrJournalR12, 'R12');
@@ -1137,6 +1143,98 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       return filasSubregistro;
     }
 
+    function formatLinesR11(arrayData) {
+      for (var i = 0; i < arrayData.length; i++) {
+        r11Columna = [];
+        //0. Tipo
+        r11Columna[0] = 'R11';
+        //1. CNPJ do Contribuinte
+        if (CNPJ != '' && CNPJ != null) {
+          r11Columna[1] = ValidaGuion(CNPJ);
+        } else {
+          r11Columna[1] = completar(14, '', ' ', false);
+        }
+        //2. MOFG - Mês de Ocorrência do Fato Gerador
+        r11Columna[2] = anio_date + mes_date;
+        //3. Situação
+        r11Columna[3] = '0';
+        if (CNPJ != '' && CNPJ != null) {
+          r11Columna[3] = cod_cadastro_Situacion; /////********Setup
+        }
+        //4. Data do Evento
+        if (r11Columna[3] == '0') {
+          r11Columna[4] = '00000000';
+        } else {
+          r11Columna[4] = anio_date + '' + mes_date + '' + dia_actual;
+        }
+        //5. COD DEL TRIBUTO
+        r11Columna[5] = arrayData[i][0];
+        //6. COD DE LA RECETA
+        r11Columna[6] = ValidaGuion(arrayData[i][2]);
+        //7. PERIODICIDAD
+        r11Columna[7] = arrayData[i][3];
+        //8. Ano do Período de Apuração
+        r11Columna[8] = anio_date;
+        //9. Mês/Bimestre/Trimestre/Quadrimestre/Semestre do Período de Apuração
+        r11Columna[9] = mes_date;
+        //10. Dia/Semana/Quinzena/Decêndio do Período de Apuração
+        r11Columna[10] = '00';
+        //11. Ordem do Estabelecimento
+        if (r11Columna[5] == '03' || r11Columna[5] == '09') { //IPI y CIDE
+          var cnpjSubsi = ValidaGuion(arrayData[i][8]);
+          var long_cnpj = cnpjSubsi.length;
+          var orden_establecimiento = cnpjSubsi.substr(long_cnpj - 6, long_cnpj - 1);
+          r11Columna[11] = orden_establecimiento;
+        } else {
+          r11Columna[11] = '000000';
+        }
+        //12. CNPJ da Incorporação/Matrícula CEI
+        r11Columna[12] = '00000000000000';
+        //13. Reservado
+        r11Columna[13] = '0';
+        //14. Período de Apuração
+        r11Columna[14] = dia_date + mes_date + anio_date;
+        //15. CNPJ do DARF
+        r11Columna[15] = ValidaGuion(arrayData[i][8]);
+        //16. Código da Receita do DARF
+        r11Columna[16] = '0000';
+        if (r11Columna[11] != null && r11Columna[11] != '') {
+          r11Columna[16] = completar(4, r11Columna[11], '0', true);
+        }
+        //17. Data de Vencimento
+        r11Columna[17] = '        ';
+        //log.debug('vencimiento', arrayData[i][1]);
+        if (arrayData[i][10] != null && arrayData[i][10] != '' && arrayData[i][10] != '- None -') {
+          r11Columna[17] = ValidaGuion(arrayData[i][10]);
+        }
+        //18. Nº de Referência
+        r11Columna[18] = completar(17, '', ' ', false);
+        //19. Valor do Principal
+        var principal = ValidaGuion(Number(arrayData[i][4]).toFixed(2));
+        r11Columna[19] = completar(14, principal, '0',true) ;
+        //20. Valor da Multa
+        var multa = ValidaGuion(Number(arrayData[i][14]).toFixed(2));
+        r11Columna[20] = completar(14, multa, '0',true) ;
+        //21. Valor dos Juros
+        var juros = ValidaGuion(Number(arrayData[i][13]).toFixed(2));
+        r11Columna[21] = completar(14, juros, '0',true) ;
+        //22. Valor pago do Débito (sumatoria de 19+20+21)
+        var montoTotal = (redondear(arrayData[i][4]) + redondear(arrayData[i][14]) + redondear(arrayData[i][13])).toFixed(2);
+        montoTotal = ValidaGuion(montoTotal);
+        r11Columna[22] = completar(14, montoTotal, '0',true) ;
+        //23. Reservado
+        r11Columna[23] = completar(10, '', ' ', false);
+        //24. Delimitador de registro
+        r11Columna[24] = '\r\n';
+
+        if (arrayData[i][9] == 5) {
+          EPayLinesPago.push(r11Columna);
+        } else {
+          EPayLinesNomina.push(r11Columna);
+        }
+      }
+    }
+
     function CargarR11(arrTotal) {
       for (var i = 0; i < arrTotal.length; i++) {
         r11Columna = [];
@@ -1334,6 +1432,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
             ArrSetupDCTF_Purchases.push(arrAuxiliar);
           } else if (arrAuxiliar[7] == '55') {
             ArrSetupDCTF_Purchases_Inv.push(arrAuxiliar);
+          } else if (arrAuxiliar[7] == 'DF') {
+            EPayLines.push(arrAuxiliar); //los que tienen multas y juros
           }
         }
       }
@@ -1363,7 +1463,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         arrAuxiliar = arrAuxiliarBillPayment[j].split(';');
         if (arrAuxiliar[5] == 'VendPymt') {
-          if (arrAuxiliar[0] == '09') { //CIDE
+          if (arrAuxiliar[7] == 'DF') {
+            EPayLines.push(arrAuxiliar);
+          } else if (arrAuxiliar[0] == '09') { //CIDE
             ArrCIDEBillPay.push(arrAuxiliar);
           } else if (arrAuxiliar[0] == '04') {
             ArrIOFBillPay.push(arrAuxiliar);
@@ -1379,6 +1481,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       log.error('vaor de arreglo de Journal CIDE', ArrCIDEJournal);
       log.error('vaor de arreglo de Bill Pay IOF', ArrIOFBillPay);
       log.error('vaor de arreglo de Bill Pay CIDE', ArrCIDEBillPay);
+      log.error('vaor de arreglo de Bill Pay EPayment', EPayLines);
     }
 
     function separarIPI_filiales() {

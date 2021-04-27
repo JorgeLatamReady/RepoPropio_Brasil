@@ -100,6 +100,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
     var Filiales;
     var SubsidiariasContempladas;
     var ArrLineasNomina = new Array();
+    var ArrEPayLines = new Array();
+    var ArrEPayLinesPago = new Array();
+    var ArrEPayLinesNomina = new Array();
 
     function execute(context) {
       try {
@@ -125,9 +128,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         ArrSetupDCTF_Purchases = agruparLineas(ArrSetupDCTF_Purchases);
         ArrSetupDCTF_Sales_Inv = agruparLineas(ArrSetupDCTF_Sales_Inv);
         ArrSetupDCTF_Purchases_Inv = agruparLineas(ArrSetupDCTF_Purchases_Inv);
-        ArrJournalImportacion = agruparLineas(ArrJournalImportacion);//importaciones proceso manual
-        ArrIOFBillPay = agruparLineas(ArrIOFBillPay);//importaciones proceso automatico
-        ArrCIDEBillPay = agruparLineas(ArrCIDEBillPay);//importaciones proceso automatico
+        ArrJournalImportacion = agruparLineas(ArrJournalImportacion); //importaciones proceso manual
+        ArrIOFBillPay = agruparLineas(ArrIOFBillPay); //importaciones proceso automatico
+        ArrCIDEBillPay = agruparLineas(ArrCIDEBillPay); //importaciones proceso automatico
 
         if (id_account_payroll != '' && id_account_payroll != '- None -' && id_account_payroll != null) {
           log.debug('cuentas payroll', Var_Acount_Payroll);
@@ -141,6 +144,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         ArrLineasNomina = ObtenerDataPagosTributos(25); //Pagamento Impostos de Nomina
         VectorPagosTributos = agruparR11(VectorPagosTributos);
         ArrLineasNomina = agruparR11(ArrLineasNomina);
+        formatEPayLines(ArrEPayLines); //formateara la data a la estructura de datos que se tiene para pagos por Journal
+        VectorPagosTributos = VectorPagosTributos.concat(ArrEPayLinesPago);
+        ArrLineasNomina = ArrLineasNomina.concat(ArrEPayLinesNomina);
         //R12
         ArrJournalR12 = obtenerJournalsR12_R14('R12');
         //R14
@@ -202,6 +208,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
             ArrSetupDCTF_Purchases.push(arrAuxiliar);
           } else if (arrAuxiliar[7] == '55') {
             ArrSetupDCTF_Purchases_Inv.push(arrAuxiliar);
+          } else if (arrAuxiliar[7] == 'DF') {
+            ArrEPayLines.push(arrAuxiliar); //los que tienen multas y juros
           }
         }
       }
@@ -225,7 +233,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
         arrAuxiliar = arrAuxiliarBillPayment[j].split(';');
         if (arrAuxiliar[0] == 'VendPymt') {
-          if (arrAuxiliar[1] == '04') {
+          if (arrAuxiliar[7] == 'DF') {
+            ArrEPayLines.push(arrAuxiliar);
+          } else if (arrAuxiliar[1] == '04') {
             ArrIOFBillPay.push(arrAuxiliar);
           } else if (arrAuxiliar[1] == '09') {
             ArrCIDEBillPay.push(arrAuxiliar);
@@ -240,6 +250,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       log.debug('Journals de Importacion', ArrJournalImportacion);
       log.error('vaor de arreglo de Bill Pay IOF', ArrIOFBillPay);
       log.error('vaor de arreglo de Bill Pay CIDE', ArrCIDEBillPay);
+      log.error('vaor de arreglo de Bill Pay E Payment', ArrEPayLines);
     }
 
     function ObtenerRecetasVentas() {
@@ -996,6 +1007,56 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         }
       }
       log.debug('ArrPayroll', ArrPayroll);
+    }
+
+    function formatEPayLines(arrData) {
+
+      for (var i = 0; i < arrData.length; i++) {
+        var arrTemporal = [];
+        //0 Document Number
+        if (arrData[i][6] != 0 || arrData[i][5] != 0) {//si hay multa o juros, se muestra del bill
+          arrTemporal.push(arrData[i][12]);
+        }else{
+          arrTemporal.push(arrData[i][16]);
+        }
+        //1 Tipo de Doc
+        arrTemporal.push(arrData[i][0]);
+        //2 Fecha de Pago
+        arrTemporal.push(arrData[i][17]);
+        //3 Fecha de Vencimiento
+        arrTemporal.push(arrData[i][11]);
+        //4 Tributo
+        arrTemporal.push(arrData[i][2]);
+        //5 Cod Tributo
+        arrTemporal.push(arrData[i][1]);
+        //6 Receita
+        arrTemporal.push(arrData[i][3]);
+        //7 Periodicidad
+        arrTemporal.push(arrData[i][4]);
+        //8 Valor Principal
+        var montoPrincipal = Number(arrData[i][15]).toFixed(2);
+        arrTemporal.push(montoPrincipal);
+        //9 Valor Multa
+        var montoMulta = Number(arrData[i][6]).toFixed(2);
+        arrTemporal.push(montoMulta);
+        //10 Valor Juros
+        var montoJuros = Number(arrData[i][5]).toFixed(2);
+        arrTemporal.push(montoJuros);
+        //11 Valor Pago
+        var total = Number(montoPrincipal) + Number(montoMulta) + Number(montoJuros);
+        arrTemporal.push(total);
+
+        //TIPO DE CONCEPTO
+        var concepto = Number(arrData[i][9]);
+
+        if (concepto == 5) {
+          ArrEPayLinesPago.push(arrTemporal);
+        } else {
+          ArrEPayLinesNomina.push(arrTemporal);
+        }
+        log.debug('ArrEPayLinesPago',ArrEPayLinesPago);
+        log.debug('ArrEPayLinesNomina',ArrEPayLinesNomina);
+      }
     }
 
     function ObtenerDataPagosTributos(concepto) {
@@ -2496,8 +2557,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
               enddate: result[i].getValue('custrecord_lmry_date_fin')
             };
           }
-        }else{
-          log.debug('Alerta','No se configuró periodo en Special Accounting Period');
+        } else {
+          log.debug('Alerta', 'No se configuró periodo en Special Accounting Period');
           periodenddate_temp = search.lookupFields({
             type: search.Type.ACCOUNTING_PERIOD,
             id: param_Periodo,
@@ -2505,7 +2566,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
           });
         }
 
-      }else{
+      } else {
         var periodenddate_temp = search.lookupFields({
           type: search.Type.ACCOUNTING_PERIOD,
           id: param_Periodo,
@@ -2513,7 +2574,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         });
       }
 
-      log.debug('periodenddate_temp',periodenddate_temp);
+      log.debug('periodenddate_temp', periodenddate_temp);
       if (periodenddate_temp != null) {
         //Period EndDate
         var periodenddate = periodenddate_temp.enddate;
@@ -2538,7 +2599,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         anio_date = AAAA + '';
         //Period Name
         periodname = periodenddate_temp.periodname;
-      }else{
+      } else {
         log.debug('Alerta Periodo', 'No se tiene configurado el periodo contable');
       }
       /***************************** DATOS DE SUBSIDIARIA *********************************/
