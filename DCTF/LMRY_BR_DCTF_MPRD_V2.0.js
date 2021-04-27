@@ -672,7 +672,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
 
       var savedsearch = search.load({
         /* LatamReady - BR DCTF E-Payment */
-        id: 'customsearch_test_br_dctf_epay'
+        id: 'customsearch_lmry_br_dctf_epay'
       });
 
       if (feature_Subsi) {
