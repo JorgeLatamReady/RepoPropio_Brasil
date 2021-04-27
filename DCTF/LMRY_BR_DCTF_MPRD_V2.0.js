@@ -169,6 +169,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
               arrTemp[14] = receitaDARF;
               arrTemp[15] = jsonDataPago.montoPago;
               arrTemp[16] = jsonDataPago.documentNumber;
+              arrTemp[17] = jsonDataPago.fechaPago;
               validacion = true;
             } else {
               return false;
@@ -183,7 +184,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
                 return false;
               }
             }else{
-              key = context.key;
+              key = arrTemp[10];
             }
           } else {
             if (arrTemp[7] == '99') { //factura de servicio
@@ -321,8 +322,9 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
 
               if (arrTransaction[0][5] != 0 || arrTransaction[0][6] != 0) {
                 //Para multas y juros se pondra el tipo bill ya que la data la sacaremos de ahi. No hay manera de identificar que bill payment de multas y juros pertenece al bill darf
-                arrAuxiliar[0] = 'VendBill';
                 arrAuxiliar[4] = 0.00; //Pago
+                arrAuxiliar[5] = 'VendBill';
+                arrTransaction[0][0] = 'VendBill';//Para pasar la clase de transacion en context.write
                 arrAuxiliar[12] = arrTransaction[0][12]; //Document Number Bill DARF
                 arrAuxiliar[13] = arrTransaction[0][5]; //Juros
                 arrAuxiliar[14] = arrTransaction[0][6]; //multas
@@ -365,20 +367,62 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
             arrTransaction[0][7] = arrTransaction[0][9]; //idJournal
             arrTransaction[0][8] = subsidiaria;
             arrTransaction[0][9] = nroDoc;
+          } else if (arrTransaction[0][0] == 'VendPymt') {
+            if (arrTransaction[0][7] == 'DF') {/* E PAYMENT */
+              var juros = arrTransaction[0][5];
+              var multa = arrTransaction[0][6];
+              var fechaUltimoPago = '';
+
+              for (var i = 0; i < arrTransaction.length; i++) {
+                arrTransaction[i][5] = 0.00;//Juros
+                arrTransaction[i][6] = 0.00;//Multas
+                fechaUltimoPago = arrTransaction[i][17];
+
+                Auxiliar = arrTransaction[i].join(';') + ';' + i_tipo;
+                var arrEnvio = [Auxiliar];
+
+                context.write({
+                  key: 1,
+                  value: {
+                    arreglo: arrEnvio, //Vector
+                    Tipo: i_tipo, //tipo de item "Service o Inventory"
+                    Clase: arrTransaction[0][0] //Tipo de Transaccion
+                  }
+                });
+
+                if (i + 1 < arrTransaction.length) {
+                  fechaUltimoPago = compararFecha(fechaUltimoPago, arrTransaction[i+1][17])
+                }
+              }
+
+              if (juros != 0 || multa != 0) {
+                //Para multas y juros se pondra el tipo bill ya que la data la sacaremos de ahi. No hay manera de identificar que bill payment de multas y juros pertenece al bill darf
+                arrTransaction[0][5] = juros;//Juros
+                arrTransaction[0][6] = multa;//Multas
+                arrTransaction[0][15] = 0.00; //Pago
+                arrTransaction[0][17] = fechaUltimoPago;
+                arrTransaction[0][0] = 'VendBill';//Para pasar la clase de transacion en context.write
+
+              } else {
+                validacion = true;
+              }
+            }
           }
 
-          //reduce para cada taxresult, por eso solo un elemento
+          //un reduce para cada taxresult, por eso solo un elemento
           Auxiliar = arrTransaction[0].join(';') + ';' + i_tipo;
           arrAuxiliar.push(Auxiliar);
 
-          context.write({
-            key: 1,
-            value: {
-              arreglo: arrAuxiliar,
-              Tipo: i_tipo,
-              Clase: arrTransaction[0][0]
-            }
-          });
+          if (!validacion) {
+            context.write({
+              key: 1,
+              value: {
+                arreglo: arrAuxiliar,
+                Tipo: i_tipo,
+                Clase: arrTransaction[0][0]
+              }
+            });
+          }
 
         }
       } catch (e) {
@@ -499,11 +543,41 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
       }
     }
 
+    function compararFecha(fecha1, fecha2){
+      arrFecha1 = fecha1.split("/");
+      arrFecha2 = fecha2.split("/");
+      log.debug('arrFecha2',arrFecha2);
+
+      if (Number(arrFecha1[2]) < Number(arrFecha2[2])) {
+        return fecha2;
+
+      }else if (Number(arrFecha1[2]) == Number(arrFecha2[2])) {
+
+        if (Number(arrFecha1[1]) < Number(arrFecha2[1])) {
+          return fecha2;
+        } else if (Number(arrFecha1[1]) == Number(arrFecha2[1])) {
+
+          if (Number(arrFecha1[0]) < Number(arrFecha2[0])) {
+            return fecha2;
+          } else {
+            return fecha1;
+          }
+        } else {
+          return fecha1;
+        }
+
+      } else{
+        return fecha1;
+      }
+
+    }
+
     function obtenerDetallePago(idBill, idBillPayment) {
       var jsonData = {
         montoPago: 0,
         documentNumber: '',
-        type: ''
+        type: '',
+        fechaPago: ''
       }
 
       var transactionSearchObj = search.create({
@@ -552,6 +626,11 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           search.createColumn({
             name: "type",
             label: "4. Type"
+          }),
+          search.createColumn({
+            name: "formulatext",
+            formula:"TO_CHAR({trandate}, 'DD/MM/YYYY')",
+            label: "5. Fecha de Pago"
           })
 
         ]
@@ -565,6 +644,7 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
           jsonData.montoPago = result.getValue(columns[0]);
           jsonData.documentNumber = result.getValue(columns[3]);
           jsonData.type = result.getValue(columns[4]);
+          jsonData.fechaPago = result.getValue(columns[5]);
         } else {
           jsonData = null;
         }
@@ -627,7 +707,6 @@ define(['N/search', 'N/log', 'N/file', 'N/runtime', "N/record", "N/task", "./BR_
       var searchResult = savedsearch.run();
       while (!DbolStop) {
         var objResult = searchResult.getRange(intDMinReg, intDMaxReg);
-        log.debug('objResult epay', objResult);
         if (objResult != null) {
           if (objResult.length != 1000) {
             DbolStop = true;

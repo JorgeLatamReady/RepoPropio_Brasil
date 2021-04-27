@@ -144,9 +144,9 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         ArrLineasNomina = ObtenerDataPagosTributos(25); //Pagamento Impostos de Nomina
         VectorPagosTributos = agruparR11(VectorPagosTributos);
         ArrLineasNomina = agruparR11(ArrLineasNomina);
-        /*formatEPayLines(ArrEPayLines); //formateara la data a la estructura de datos que se tiene para pagos por Journal
+        formatEPayLines(ArrEPayLines); //formateara la data a la estructura de datos que se tiene para pagos por Journal
         VectorPagosTributos = VectorPagosTributos.concat(ArrEPayLinesPago);
-        ArrLineasNomina = ArrLineasNomina.concat(ArrEPayLinesNomina);*/
+        ArrLineasNomina = ArrLineasNomina.concat(ArrEPayLinesNomina);
         //R12
         ArrJournalR12 = obtenerJournalsR12_R14('R12');
         //R14
@@ -1014,11 +1014,15 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
       for (var i = 0; i < arrData.length; i++) {
         var arrTemporal = [];
         //0 Document Number
-        arrTemporal.push(arrData[i][16]);
+        if (arrData[i][6] != 0 || arrData[i][5] != 0) {//si hay multa o juros, se muestra del bill
+          arrTemporal.push(arrData[i][12]);
+        }else{
+          arrTemporal.push(arrData[i][16]);
+        }
         //1 Tipo de Doc
         arrTemporal.push(arrData[i][0]);
         //2 Fecha de Pago
-        arrTemporal.push('');
+        arrTemporal.push(arrData[i][17]);
         //3 Fecha de Vencimiento
         arrTemporal.push(arrData[i][11]);
         //4 Tributo
@@ -1039,7 +1043,7 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         var montoJuros = Number(arrData[i][5]).toFixed(2);
         arrTemporal.push(montoJuros);
         //11 Valor Pago
-        var total = montoPrincipal + montoMulta + montoJuros;
+        var total = Number(montoPrincipal) + Number(montoMulta) + Number(montoJuros);
         arrTemporal.push(total);
 
         //TIPO DE CONCEPTO
@@ -1050,7 +1054,8 @@ define(["N/record", "N/runtime", "N/file", "N/email", "N/search", "N/format",
         } else {
           ArrEPayLinesNomina.push(arrTemporal);
         }
-
+        log.debug('ArrEPayLinesPago',ArrEPayLinesPago);
+        log.debug('ArrEPayLinesNomina',ArrEPayLinesNomina);
       }
     }
 
